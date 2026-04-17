@@ -65,7 +65,8 @@ def hf_fund_fair_price(base_rate, term_premium, maturity_spectrum):
     # Base curve is simply the fair price curve based on the current base rate
     fair_price = (100/base_rate)**(maturity_spectrum)*100
     # Add some term premium
-    fair_price = fair_price*100/(100+term_premium * maturity_spectrum)
+    term_premium_curve = (1+term_premium)**maturity_spectrum
+    fair_price = fair_price/term_premium_curve  
 
     # Now we add a random component to the pricing curve
     fair_price = fair_price*hf_curve_random(fair_price, maturity_spectrum, hf_random_type, hf_heterogeneity)/100

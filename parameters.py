@@ -11,7 +11,7 @@ N_noise_traders = 100
 
 scale_demand = 1
 
-term_premium = 0.02
+term_premium = 0.002 #monthly term premium
 
 hf_random_type = 0
 # 0: Simple slope deviation
