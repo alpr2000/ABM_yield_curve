@@ -18,6 +18,9 @@ hf_random_type = 0
 
 hf_heterogeneity = 0.001
 
+pf_liquidity_buffer =0.2
+
+scale_noise_trader = 1000
 ########################################
 
 maturity_spectrum = np.linspace(1, 12 * N_years, 12 * N_years)  # Maturities from 1 to 30 years
