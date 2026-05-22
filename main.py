@@ -42,7 +42,7 @@ from supply_functions import *
 from bond_auction import *
 from parameters import *
 
-###### Initialial conditions ######
+###### Initial conditions ######
 
 base_rate = 100.2 # This means a 0.2% return over 1 month, which annualizes to approximately 2.43%
 
@@ -82,12 +82,25 @@ PF_liabilities = np.random.uniform(0, 100, size=(N_pension_funds, len(maturity_s
 ################################
 
 ################## Pension Fund Demand Functions ##################
-PF_demand = pf_demand_all_maturities(price_spectrum, maturity_spectrum, pf_fair_price(base_rate, term_premium, maturity_spectrum), PF_liabilities)
+PF_demand = pf_demand_all_maturities(price_spectrum,
+                                     maturity_spectrum,
+                                     pf_fair_price(base_rate,
+                                                   term_premium,
+                                                   maturity_spectrum),
+                                     PF_liabilities)
 
 
 #################### Hedge Fund Demand Functions ##################
 
-HF_fair_prices = hf_fund_fair_price(base_rate, term_premium, maturity_spectrum)
+HF_fair_prices = hf_fund_fair_price(base_rate,
+                                    term_premium,
+                                    maturity_spectrum,
+                                    N_hedge_funds)
+
+HF_funds_by_maturity = np.ones((len(maturity_spectrum), N_hedge_funds)) * HF_cash/len(maturity_spectrum)
 
 HF_demand = hf_demand_all_maturities(price_spectrum,
                                      maturity_spectrum,
+                                     HF_fair_prices,
+                                     HF_cash,
+                                     scale_demand)

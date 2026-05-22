@@ -74,7 +74,8 @@ def pf_demand_all_maturities(price_spectrum, maturity_spectrum, fair_prices, lia
 
 ################## Hedge Fund Demand Functions ##################
 
-def hf_curve_random(fair_price, maturity_spectrum, hf_random_type, hf_heterogeneity):
+def hf_curve_random(fair_price, maturity_spectrum, hf_random_type, hf_heterogeneity, seed):
+    random.seed(seed)
     if hf_random_type == 0:
         # Simple slope deviation
         random_slope = random.uniform(1-hf_heterogeneity, 1+hf_heterogeneity)
@@ -86,19 +87,17 @@ def hf_curve_random(fair_price, maturity_spectrum, hf_random_type, hf_heterogene
 # Create function to create each hedge fund proprietary pricing curve based on the current base rate and a random seed
 def hf_fund_fair_price(base_rate, term_premium, maturity_spectrum, N_hedge_funds):
     # Base curve is simply the fair price curve based on the current base rate
-    maturity_grid = np.asarray(maturity_spectrum)
-    N_funds_grid = np.ones(N_hedge_funds)[:, np.newaxis]
     fair_price = (100/base_rate)**(maturity_spectrum)*100
     # Add some term premium
     term_premium_curve = (1+term_premium)**maturity_spectrum
     fair_price = fair_price/term_premium_curve  
 
-    # Now we add a random component to the pricing curve for each fund
-    fair_price = fair_price[np.newaxis, :]
-    # We want a random curve for each of N_funds, so we repeat the fair price curve N_funds times and then apply the randomization function to each one
-    fair_price = np.repeat(fair_price, N_hedge_funds, axis=0)
-
-    fair_prices = hf_curve_random(fair_price, maturity_spectrum, hf_random_type, hf_heterogeneity)/100
+    # Generate N_hedge_funds different slopes, one per fund
+    random_slopes = random.uniform(1-hf_heterogeneity, 1+hf_heterogeneity, size=N_hedge_funds)
+    random_slopes = random_slopes[:, np.newaxis]  # Shape (N_hedge_funds, 1) for broadcasting
+    
+    # Apply each slope to the fair price curve to get N_hedge_funds independent curves
+    fair_prices = (random_slopes ** maturity_spectrum) * fair_price
 
     return fair_prices
 
@@ -112,19 +111,42 @@ def hf_demand_single(price_spectrum, fair_price, funds, scale_demand):
     demand_curve = np.minimum(demand_curve, funds)
     return demand_curve
 
+def allocate_hf_funds(base_rate, term_premium, maturity_spectrum, HF_fair_prices, HF_cash):
+    fair_price = (100/base_rate)**(maturity_spectrum)*100
+    term_premium_curve = (1+term_premium)**maturity_spectrum
+    fair_price = fair_price/term_premium_curve
+
+    price_diff = HF_fair_prices - fair_price[np.newaxis,:]
+    
+    # Find maturities with biggest deviations (top 20%) for EACH FUND
+    abs_price_diff = np.abs(price_diff)
+    
+    # Compute 80th percentile for each fund (along maturities axis)
+    cutoff_values = np.percentile(abs_price_diff, 80, axis=1)
+    cutoff_values = cutoff_values[:, np.newaxis]  # Reshape to (N_funds, 1)
+    
+    # Keep only values where |deviation| >= cutoff, preserving the original sign
+    price_diff_filtered = np.where(abs_price_diff >= cutoff_values, price_diff, 0)
+
+    return price_diff_filtered
+
+
 # Produces the nested array of demand functions for each maturity
 def hf_demand_all_maturities(price_spectrum, maturity_spectrum, fair_prices, funds, scale_demand):
     price_spectrum = np.asarray(price_spectrum)
     fair_prices = np.asarray(fair_prices)
     maturity_spectrum = np.asarray(maturity_spectrum)
+    funds = np.asarray(funds) # Funds  is a maturity_spectrum x N_hedge_funds array
 
-    price_grid = price_spectrum[np.newaxis, :]
-    fair_grid = fair_prices[:, np.newaxis]
+    # Reshape for broadcasting to (25, 360, 200)
+    price_grid = price_spectrum  # shape (200,)
+    fair_grid = fair_prices[:, :, np.newaxis]  # shape (25, 360, 1)
+    funds_grid = funds[:, :, np.newaxis]  # shape (25, 360, 1)
 
     demand_array = -price_grid + fair_grid
     demand_array = (scale_demand * demand_array) ** 2
     demand_array[price_grid > fair_grid] = 0
-    demand_array = np.minimum(demand_array, funds)
+    demand_array = np.minimum(demand_array, funds_grid)
 
     return demand_array
 
