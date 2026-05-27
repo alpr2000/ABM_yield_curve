@@ -47,19 +47,6 @@ from parameters import *
 base_rate = 100.2 # This means a 0.2% return over 1 month, which annualizes to approximately 2.43%
 
 
-######
-# Generate empty arrays for cash holdings and bond holdings
-######
-
-PF_cash = np.zeros(N_pension_funds)
-PF_bonds = np.zeros((N_pension_funds, len(maturity_spectrum)))
-
-HF_cash = np.zeros(N_hedge_funds)
-HF_bonds = np.zeros((N_hedge_funds, len(maturity_spectrum)))
-
-NT_cash = np.zeros(N_noise_traders)
-NT_bonds = np.zeros((N_noise_traders, len(maturity_spectrum)))
-
 ################################
 # Initialisation type 1, funds hold a random distribution of bonds across the
 # maturity spectrum. 
@@ -94,12 +81,14 @@ HF_holdings = np.random.uniform(0, 100, size=(N_hedge_funds, len(maturity_spectr
 NT_holdings = np.random.uniform(0, 100, size=(N_noise_traders, len(maturity_spectrum)))
 
 HF_cash = np.random.uniform(0, 500000, size=N_hedge_funds)
-NT_cash = np.random.uniform(0, 500000, size=N_noise_traders)
+NT_cash = np.random.uniform(400000, 500000, size=N_noise_traders)
 
 
-################################
-# Generate the demand functions for each agent type
-################################
+#######################
+#######################
+# DEMAND FUNCTIONS
+#######################
+#######################
 
 ################## Pension Fund Demand Functions ##################
 PF_demand = pf_demand_all_maturities(price_spectrum,
@@ -109,10 +98,7 @@ PF_demand = pf_demand_all_maturities(price_spectrum,
                                                    maturity_spectrum),
                                      PF_liabilities-PF_holdings)
 
-
-# Quick note on endowments:
-# This demand curve is not "normalised" in that the demand is scaled by the liabilities of the fund
-# This demand function does not, therefore, need rescaling by the cash holdings of the fund, as the demand will naturally be lower for funds with smaller liabilities, and higher for funds with larger liabilities.
+PF_demand = cap_demand_by_cash(PF_demand, price_spectrum, PF_cash, pf_liquidity_buffer)
 
 #################### Hedge Fund Demand Functions ##################
 
@@ -121,30 +107,27 @@ HF_fair_prices = hf_fund_fair_price(base_rate,
                                     maturity_spectrum,
                                     N_hedge_funds)
 
-HF_funds_by_maturity = np.ones((N_hedge_funds, len(maturity_spectrum))) * HF_cash[:, np.newaxis]/len(maturity_spectrum)
+HF_demand = hf_demand_all_maturities(price_spectrum,
+                                     maturity_spectrum,
+                                     HF_fair_prices,
+                                     scale_demand,
+                                     HF_holdings)
 
-#HF_demand = hf_demand_all_maturities(price_spectrum,
-#                                     maturity_spectrum,
-#                                     HF_fair_prices,
-#                                     scale_demand)
-
-HF_demand = hf_demand_all_maturities_normalized(price_spectrum,
-                                        maturity_spectrum,
-                                        HF_fair_prices,
-                                        scale_demand,
-                                        HF_cash)
-
-
-# The demand is now normalized by cash holdings, so HFs will not exceed their available cash
-
+HF_demand = cap_demand_by_cash(HF_demand, price_spectrum, HF_cash, hf_liquidity_buffer)
 
 
 #################### Noise Trader Demand Functions ##################
 
 NT_fair_prices = nt_fair_price(base_rate, term_premium, maturity_spectrum)
 
-NT_demand = noise_trader_demand(price_spectrum, NT_fair_prices, scale_noise_trader)
+NT_demand = noise_trader_demand(price_spectrum, NT_fair_prices, scale_noise_trader, NT_cash, nt_cash_perc)
 
+
+#######################
+#######################
+# SUPPLY FUNCTIONS
+#######################
+#######################
 
 #################### Hedge Fund Supply Functions ##################
 
@@ -159,4 +142,6 @@ HF_supply = hf_supply_all_maturities(price_spectrum,
 
 NT_supply = nt_supply_all_maturities(price_spectrum,
                                      maturity_spectrum,
-                                     NT_holdings)
+                                     NT_holdings, 
+                                     NT_fair_prices,
+                                     nt_cash_perc)

@@ -133,10 +133,11 @@ def allocate_hf_funds(base_rate, term_premium, maturity_spectrum, HF_fair_prices
 
 
 # Produces the nested array of demand functions for each maturity
-def hf_demand_all_maturities(price_spectrum, maturity_spectrum, fair_prices, scale_demand):
+def hf_demand_all_maturities(price_spectrum, maturity_spectrum, fair_prices, scale_demand, HF_holdings):
     price_spectrum = np.asarray(price_spectrum)
     fair_prices = np.asarray(fair_prices)
     maturity_spectrum = np.asarray(maturity_spectrum)
+    HF_holdings = np.asarray(HF_holdings)
 
     # Reshape for broadcasting to (25, 360, 200)
     price_grid = price_spectrum  # shape (200,)
@@ -145,7 +146,16 @@ def hf_demand_all_maturities(price_spectrum, maturity_spectrum, fair_prices, sca
     demand_array = -price_grid + fair_grid
     demand_array = (scale_demand * demand_array) ** 2
     demand_array[price_grid > fair_grid] = 0
+    
+    # Cap demand: max 0.5*(1/360) of total holdings value per maturity
+    # Total holdings value per fund: sum(holdings * fair_prices) across maturities
+    holdings_value = np.sum(HF_holdings * fair_prices, axis=1)  # shape (25,)
+    position_limit_value = 0.5 * holdings_value / 360  # max value per maturity: shape (25,)
 
+    # Cap demand by position limit: convert value limit to quantity limit for each maturity
+    quantity_limit = position_limit_value[:, np.newaxis] / fair_prices  # shape (25, 360)
+    quantity_limit = quantity_limit[:, :, np.newaxis]  # shape (25, 360, 1) for broadcasting
+    demand_array = np.minimum(demand_array, quantity_limit)
 
     return demand_array
 
@@ -201,6 +211,10 @@ def cap_demand_by_cash(demand_array, price_spectrum, cash_holdings, liqudity_buf
     # Apply scaling: reshape for broadcasting (N_agents,) -> (N_agents, 1, 1)
     scale_factors_reshaped = scale_factors[:, np.newaxis, np.newaxis]
     capped_demand = demand_array * scale_factors_reshaped
+
+    
+    #Round quantity to integer number of bonds
+    capped_demand = np.floor(capped_demand)
     
     return capped_demand
 
@@ -215,14 +229,17 @@ def nt_fair_price(base_rate, term_premium, maturity_spectrum):
     return fair_price
 
 
-def noise_trader_demand(price_spectrum, fair_prices, scale_noise_trader):
+def noise_trader_demand(price_spectrum, fair_prices, scale_noise_trader, NT_cash, nt_cash_perc):
     # Generate a normal distribution around the fair price
     fair_prices = np.asarray(fair_prices)
     price_spectrum = np.asarray(price_spectrum)
     price_grid = price_spectrum[np.newaxis, :]
     fair_grid = fair_prices[:, np.newaxis]
     demand_array = np.exp(-0.5 * ((price_grid - fair_grid) / 5) ** 2)
-    demand_array = demand_array / demand_array.sum(axis=1, keepdims=True)
+    max_to_buy = nt_cash_perc * NT_cash/sum(fair_grid) # Here we set the NTs to only buy a set number of gilts at any maturity, they will buy as many 1m as 30y
+    demand_array = demand_array * max_to_buy
+
+    demand_array = np.floor(demand_array)
     return demand_array
 
 

@@ -52,26 +52,22 @@ def hf_supply_all_maturities(price_spectrum, maturity_spectrum, fair_prices, sca
 
 ################## Noise Trader Supply Functions ##################
 
-def nt_supply_all_maturities(price_spectrum, maturity_spectrum, NT_holdings):
+def nt_supply_all_maturities(price_spectrum, maturity_spectrum, NT_holdings, fair_prices, nt_cash_perc ):
     """
     Generates supply curves for noise traders across all maturities
     NT supplies uniformly distributed across prices based on their holdings
     """
     price_spectrum = np.asarray(price_spectrum)
     NT_holdings = np.asarray(NT_holdings)
+    fair_prices = np.asarray(fair_prices)
     
-    N_noise_traders = NT_holdings.shape[0]
-    N_prices = len(price_spectrum)
-    N_maturities = len(maturity_spectrum)
+
+    fair_grid = fair_prices[:, np.newaxis]  # shape (1, 360, 1)
     
-    # Create supply array with shape (N_noise_traders, N_maturities, N_prices)
-    supply_array = np.zeros((N_noise_traders, N_maturities, N_prices))
+    supply_array = np.exp(-0.5 * ((price_spectrum - fair_grid) / 5) ** 2)
+
+    supply_array = NT_holdings * supply_array * nt_cash_perc
     
-    # For each trader and maturity, distribute holdings uniformly across prices
-    for i in range(N_noise_traders):
-        for j in range(N_maturities):
-            holding = NT_holdings[i, j]
-            # Uniform distribution across prices
-            supply_array[i, j, :] = holding / N_prices
-    
+    supply_array = np.floor(supply_array)
+
     return supply_array

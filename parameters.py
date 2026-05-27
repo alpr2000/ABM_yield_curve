@@ -7,8 +7,7 @@ price_granularity = 0.1
 
 N_pension_funds = 10
 N_hedge_funds = 25
-N_noise_traders = 100
-
+N_noise_traders = 1 # Can use 1 representative noise trader since they have no strategic behavior
 scale_demand = 1
 
 term_premium = 0.002 #monthly term premium
@@ -16,11 +15,13 @@ term_premium = 0.002 #monthly term premium
 hf_random_type = 0
 # 0: Simple slope deviation
 
-hf_heterogeneity = 0.001
+hf_heterogeneity = 0.0001
+hf_liquidity_buffer = 0.2
 
 pf_margin = 1.25
 pf_liquidity_buffer =0.2
 
+nt_cash_perc = 0.25
 scale_noise_trader = 1000
 ########################################
 
