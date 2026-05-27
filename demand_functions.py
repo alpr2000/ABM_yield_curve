@@ -22,11 +22,12 @@ from parameters import pf_liquidity_buffer
 
 
 # Generates new liabilities which the PF must meet
-def pf_gen_liability(maturity_spectrum):
-    # Only add liabilities for the second half of the maturity spectrum
-    new_liabilities = random.uniform(0, 1, size=len(maturity_spectrum))
-    new_liabilities[:len(maturity_spectrum) // 2] = 0
-    return new_liabilities
+def pf_gen_liability(maturity_spectrum, scale_liability, N_pension_funds):
+    # Only add liabilities for the last 3 quarters of the maturity spectrum
+    # Only allow integer multiples of the price granularity, to avoid issues with the demand function
+    new_liabilities = np.random.randint(0, scale_liability, size=(N_pension_funds, len(maturity_spectrum)))
+    new_liabilities[:, :len(maturity_spectrum) // 4] = 0
+    return new_liabilities*scale_liability
 
 # Performs the pension fund's estimate of the fair price
 def pf_fair_price(base_rate, term_premium, maturity_spectrum):
@@ -132,24 +133,76 @@ def allocate_hf_funds(base_rate, term_premium, maturity_spectrum, HF_fair_prices
 
 
 # Produces the nested array of demand functions for each maturity
-def hf_demand_all_maturities(price_spectrum, maturity_spectrum, fair_prices, funds, scale_demand):
+def hf_demand_all_maturities(price_spectrum, maturity_spectrum, fair_prices, scale_demand):
     price_spectrum = np.asarray(price_spectrum)
     fair_prices = np.asarray(fair_prices)
     maturity_spectrum = np.asarray(maturity_spectrum)
-    funds = np.asarray(funds) # Funds  is a maturity_spectrum x N_hedge_funds array
 
     # Reshape for broadcasting to (25, 360, 200)
     price_grid = price_spectrum  # shape (200,)
     fair_grid = fair_prices[:, :, np.newaxis]  # shape (25, 360, 1)
-    funds_grid = funds[:, :, np.newaxis]  # shape (25, 360, 1)
 
     demand_array = -price_grid + fair_grid
     demand_array = (scale_demand * demand_array) ** 2
     demand_array[price_grid > fair_grid] = 0
-    demand_array = np.minimum(demand_array, funds_grid)
+
 
     return demand_array
 
+
+################### Cash Constraint Function ##################
+
+def cap_demand_by_cash(demand_array, price_spectrum, cash_holdings, liqudity_buffer):
+    """
+    Caps demand curves to ensure price*quantity spending doesn't exceed available cash.
+    Scales down all demands proportionally for agents that would overspend.
+    
+    Parameters:
+    -----------
+    demand_array : ndarray, shape (N_agents, N_maturities, N_prices)
+        Demand quantities across prices for each agent and maturity
+    price_spectrum : ndarray, shape (N_prices,)
+        Prices corresponding to each column of demand_array
+    cash_holdings : ndarray, shape (N_agents,)
+        Available cash for each agent
+    
+    Returns:
+    --------
+    capped_demand : ndarray, shape (N_agents, N_maturities, N_prices)
+        Demand array with overspending capped by available cash
+    """
+    demand_array = np.asarray(demand_array)
+    price_spectrum = np.asarray(price_spectrum)
+    cash_holdings = np.asarray(cash_holdings)
+    
+    N_agents, N_maturities, N_prices = demand_array.shape
+    
+    # Reshape price_spectrum for broadcasting: (N_prices,) -> (1, 1, N_prices)
+    price_grid = price_spectrum[np.newaxis, np.newaxis, :]
+    
+    # Calculate spending value for each (agent, maturity) taking the max possible spending across prices (worst case)
+    spending_array = demand_array * price_grid  # shape (N_agents, N_maturities, N_prices)
+    spending_array = np.max(spending_array, axis=2, keepdims=True)  # shape (N_agents, N_maturities, 1)
+    
+    # Sum spending across all maturities and prices for each agent
+    # Shape: (N_agents,)
+    total_spending = np.sum(spending_array, axis=(1, 2))
+
+    # As long as cash is greater than the liquidity buffer, they can spend the difference
+
+    cash_available_for_spending = cash_holdings - liqudity_buffer
+    cash_available_for_spending = np.maximum(cash_available_for_spending, 0)
+    
+    # Calculate scale factor for each agent
+    # If total_spending <= cash, scale_factor = 1.0
+    # If total_spending > cash, scale_factor = cash / total_spending
+    scale_factors = np.minimum(1.0, cash_available_for_spending / (total_spending + 1e-10))
+    
+    # Apply scaling: reshape for broadcasting (N_agents,) -> (N_agents, 1, 1)
+    scale_factors_reshaped = scale_factors[:, np.newaxis, np.newaxis]
+    capped_demand = demand_array * scale_factors_reshaped
+    
+    return capped_demand
 
 ################### Noise Trader Demand Function ##################
 
@@ -169,7 +222,7 @@ def noise_trader_demand(price_spectrum, fair_prices, scale_noise_trader):
     price_grid = price_spectrum[np.newaxis, :]
     fair_grid = fair_prices[:, np.newaxis]
     demand_array = np.exp(-0.5 * ((price_grid - fair_grid) / 5) ** 2)
-    demand_array = demand_array / demand_array.sum(axis=1, keepdims=True) * cash
+    demand_array = demand_array / demand_array.sum(axis=1, keepdims=True)
     return demand_array
 
 

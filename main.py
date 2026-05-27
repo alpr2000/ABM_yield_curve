@@ -65,16 +65,36 @@ NT_bonds = np.zeros((N_noise_traders, len(maturity_spectrum)))
 # maturity spectrum. 
 ################################
 
-PF_bonds = np.random.uniform(0, 100, size=(N_pension_funds, len(maturity_spectrum)))
-HF_bonds = np.random.uniform(0, 100, size=(N_hedge_funds, len(maturity_spectrum)))
-NT_bonds = np.random.uniform(0, 100, size=(N_noise_traders, len(maturity_spectrum)))
+# A note on scale:
+# Funds hold up to ~100 bonds at each maturity, each of which is priced at an average of ~50
+# Their total holdings are therefore of the order of 2e6
+# We give them cash holdings of the order 5e5
 
-PF_cash = np.random.uniform(0, 10000, size=N_pension_funds)
-HF_cash = np.random.uniform(0, 10000, size=N_hedge_funds)
-NT_cash = np.random.uniform(0, 10000, size=N_noise_traders)
+
+
+
+###### Pensions funds
+#Give initially random but matched liabilities
+
+PF_cash = np.random.uniform(0, 500000, size=N_pension_funds)
 
 PF_liabilities = np.zeros((N_pension_funds, len(maturity_spectrum)))
-PF_liabilities = np.random.uniform(0, 100, size=(N_pension_funds, len(maturity_spectrum)))
+PF_liabilities = np.random.randint(0, 100, size=(N_pension_funds, len(maturity_spectrum)))
+PF_holdings=PF_liabilities
+#Generate new liabilities
+new_liabilities = pf_gen_liability(maturity_spectrum, 5, N_pension_funds)
+PF_liabilities=PF_liabilities+new_liabilities
+
+# PFs get cash proportional to the new liabilities*fair_price of each liability and scaled up by PF_margin
+PF_cash = PF_cash + np.sum(new_liabilities*pf_fair_price(base_rate, term_premium, maturity_spectrum), axis=1)*pf_margin
+
+###### Hedge funds and noise traders
+
+HF_holdings = np.random.uniform(0, 100, size=(N_hedge_funds, len(maturity_spectrum)))
+NT_holdings = np.random.uniform(0, 100, size=(N_noise_traders, len(maturity_spectrum)))
+
+HF_cash = np.random.uniform(0, 500000, size=N_hedge_funds)
+NT_cash = np.random.uniform(0, 500000, size=N_noise_traders)
 
 
 ################################
@@ -87,8 +107,12 @@ PF_demand = pf_demand_all_maturities(price_spectrum,
                                      pf_fair_price(base_rate,
                                                    term_premium,
                                                    maturity_spectrum),
-                                     PF_liabilities)
+                                     PF_liabilities-PF_holdings)
 
+
+# Quick note on endowments:
+# This demand curve is not "normalised" in that the demand is scaled by the liabilities of the fund
+# This demand function does not, therefore, need rescaling by the cash holdings of the fund, as the demand will naturally be lower for funds with smaller liabilities, and higher for funds with larger liabilities.
 
 #################### Hedge Fund Demand Functions ##################
 
@@ -97,10 +121,42 @@ HF_fair_prices = hf_fund_fair_price(base_rate,
                                     maturity_spectrum,
                                     N_hedge_funds)
 
-HF_funds_by_maturity = np.ones((len(maturity_spectrum), N_hedge_funds)) * HF_cash/len(maturity_spectrum)
+HF_funds_by_maturity = np.ones((N_hedge_funds, len(maturity_spectrum))) * HF_cash[:, np.newaxis]/len(maturity_spectrum)
 
-HF_demand = hf_demand_all_maturities(price_spectrum,
+#HF_demand = hf_demand_all_maturities(price_spectrum,
+#                                     maturity_spectrum,
+#                                     HF_fair_prices,
+#                                     scale_demand)
+
+HF_demand = hf_demand_all_maturities_normalized(price_spectrum,
+                                        maturity_spectrum,
+                                        HF_fair_prices,
+                                        scale_demand,
+                                        HF_cash)
+
+
+# The demand is now normalized by cash holdings, so HFs will not exceed their available cash
+
+
+
+#################### Noise Trader Demand Functions ##################
+
+NT_fair_prices = nt_fair_price(base_rate, term_premium, maturity_spectrum)
+
+NT_demand = noise_trader_demand(price_spectrum, NT_fair_prices, scale_noise_trader)
+
+
+#################### Hedge Fund Supply Functions ##################
+
+HF_supply = hf_supply_all_maturities(price_spectrum,
                                      maturity_spectrum,
                                      HF_fair_prices,
-                                     HF_cash,
-                                     scale_demand)
+                                     scale_demand,
+                                     HF_holdings)
+
+
+#################### Noise Trader Supply Functions ##################
+
+NT_supply = nt_supply_all_maturities(price_spectrum,
+                                     maturity_spectrum,
+                                     NT_holdings)

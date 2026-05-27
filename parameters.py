@@ -3,7 +3,7 @@ import numpy as np
 # INPUTS
 ################################
 N_years = 30
-price_granularity = 1
+price_granularity = 0.1
 
 N_pension_funds = 10
 N_hedge_funds = 25
@@ -18,6 +18,7 @@ hf_random_type = 0
 
 hf_heterogeneity = 0.001
 
+pf_margin = 1.25
 pf_liquidity_buffer =0.2
 
 scale_noise_trader = 1000
