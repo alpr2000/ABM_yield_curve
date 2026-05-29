@@ -32,10 +32,10 @@ def pf_gen_liability(maturity_spectrum, scale_liability, N_pension_funds):
 # Performs the pension fund's estimate of the fair price
 def pf_fair_price(base_rate, term_premium, maturity_spectrum):
     #As all bonds are zero-coupon, the fair price is simply the discounted value of the liability at maturity
-    fair_price = (100/base_rate)**(maturity_spectrum)*100
-    term_premium_curve = (1+term_premium)**maturity_spectrum
-    fair_price = fair_price/term_premium_curve 
-    return (fair_price)
+    monthly_rate = (base_rate - 100) / 100
+    yield_curve = monthly_rate + term_premium * maturity_spectrum
+    fair_price = 100 / (1 + yield_curve) ** maturity_spectrum
+    return fair_price
 
 # Calculates the pension fund's demand for a bond of a particular liability
 # This is actually redundant as we can just calculate the demand for all maturities at once, but it is useful for testing and visualization purposes
@@ -88,10 +88,9 @@ def hf_curve_random(fair_price, maturity_spectrum, hf_random_type, hf_heterogene
 # Create function to create each hedge fund proprietary pricing curve based on the current base rate and a random seed
 def hf_fund_fair_price(base_rate, term_premium, maturity_spectrum, N_hedge_funds):
     # Base curve is simply the fair price curve based on the current base rate
-    fair_price = (100/base_rate)**(maturity_spectrum)*100
-    # Add some term premium
-    term_premium_curve = (1+term_premium)**maturity_spectrum
-    fair_price = fair_price/term_premium_curve  
+    monthly_rate = (base_rate - 100) / 100
+    yield_curve = monthly_rate + term_premium * maturity_spectrum
+    fair_price = 100 / (1 + yield_curve) ** maturity_spectrum
 
     # Generate N_hedge_funds different slopes, one per fund
     random_slopes = random.uniform(1-hf_heterogeneity, 1+hf_heterogeneity, size=N_hedge_funds)
@@ -113,10 +112,10 @@ def hf_demand_single(price_spectrum, fair_price, funds, scale_demand):
     return demand_curve
 
 def allocate_hf_funds(base_rate, term_premium, maturity_spectrum, HF_fair_prices, HF_cash):
-    fair_price = (100/base_rate)**(maturity_spectrum)*100
-    term_premium_curve = (1+term_premium)**maturity_spectrum
-    fair_price = fair_price/term_premium_curve
-
+    monthly_rate = (base_rate - 100) / 100
+    yield_curve = monthly_rate + term_premium * maturity_spectrum
+    fair_price = 100 / (1 + yield_curve) ** maturity_spectrum
+    
     price_diff = HF_fair_prices - fair_price[np.newaxis,:]
     
     # Find maturities with biggest deviations (top 20%) for EACH FUND
@@ -156,6 +155,9 @@ def hf_demand_all_maturities(price_spectrum, maturity_spectrum, fair_prices, sca
     quantity_limit = position_limit_value[:, np.newaxis] / fair_prices  # shape (25, 360)
     quantity_limit = quantity_limit[:, :, np.newaxis]  # shape (25, 360, 1) for broadcasting
     demand_array = np.minimum(demand_array, quantity_limit)
+    
+    # Round to integer bond quantities
+    demand_array = np.floor(demand_array)
 
     return demand_array
 
@@ -223,9 +225,9 @@ def cap_demand_by_cash(demand_array, price_spectrum, cash_holdings, liqudity_buf
 # The noise trader just demands a normal distribution around the fair price
 
 def nt_fair_price(base_rate, term_premium, maturity_spectrum):
-    fair_price = (100/base_rate)**(maturity_spectrum)*100
-    term_premium_curve = (1+term_premium)**maturity_spectrum
-    fair_price = fair_price/term_premium_curve 
+    monthly_rate = (base_rate - 100) / 100
+    yield_curve = monthly_rate + term_premium * maturity_spectrum
+    fair_price = 100 / (1 + yield_curve) ** maturity_spectrum
     return fair_price
 
 

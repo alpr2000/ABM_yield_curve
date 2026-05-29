@@ -1,29 +1,19 @@
-"""
-
-Here we generate the government bond auction
-
-"""
 import numpy as np
 import numpy.random as random
-from parameters import *
-
-def stochastic_bond_supply(quantity, maturity_spectrum):
-    supply = np.random.uniform(0, 1, size=maturity_spectrum.shape)
-    supply = supply/np.sum(supply)*quantity
-    supply = np.floor(supply) # Round to integer bond quantities
-    return supply
 
 
-# This function find the clearing price for all maturities    
-def find_clearing_price_auction(PF_demands, HF_demands, PF_holdings,HF_holdings, gov_supply, price_spectrum):
+def clear_secondary(PF_demands, HF_demands, NT_demands, HF_supplys, NT_supplys, price_spectrum, PF_holdings, HF_holdings, NT_holdings):
+    """
+    Finds the market clearing price for each maturity by summing demand and supply across all agents
+    Returns the price at which demand equals supply for each maturity
+    """
+    NT_demands = NT_demands[np.newaxis, :, :]
+    NT_supplys = NT_supplys[np.newaxis, :, :]
 
     #Add along the maturity and price dimensions to get total demand and supply for each maturity and price
-    total_demand = PF_demands.sum(axis=0) + HF_demands.sum(axis=0)
+    total_demand = PF_demands.sum(axis=0) + HF_demands.sum(axis=0) + NT_demands.sum(axis=0)
 
-    total_supply = gov_supply[:, np.newaxis] # shape (1, 360, 1)
-
-    #Repeat supply across the price dimension to match demand shape (1, 360, 200)
-    total_supply = np.repeat(total_supply, len(price_spectrum), axis=1)
+    total_supply = HF_supplys.sum(axis=0) + NT_supplys.sum(axis=0)
 
     # Find the price where demand equals supply for each maturity
     # Note we take the price where demand ~ supply but strictly demand<supply
@@ -34,18 +24,22 @@ def find_clearing_price_auction(PF_demands, HF_demands, PF_holdings,HF_holdings,
     clearing_prices = price_spectrum[price_indices]
 
     # Find the change in holdings for each agent based on the clearing price
-    # Note if no gov bonds are supplied at a given maturity, no trades occur at that maturity
     PF_trades = PF_demands[:, np.arange(len(price_indices)), price_indices]
     PF_trades[:,total_supply[:, 0] == 0] = 0
     PF_trades[:,total_demand[:, 0] == 0] = 0
-
-    HF_trades = HF_demands[:, np.arange(len(price_indices)), price_indices] 
+    
+    HF_trades = HF_demands[:, np.arange(len(price_indices)), price_indices] - HF_supplys[:, np.arange(len(price_indices)), price_indices]
     HF_trades[:,total_supply[:, 0] == 0] = 0
     HF_trades[:,total_demand[:, 0] == 0] = 0
+
+    NT_trades = NT_demands[:, np.arange(len(price_indices)), price_indices] - NT_supplys[:, np.arange(len(price_indices)), price_indices]
+    NT_trades[:,total_supply[:, 0] == 0] = 0
+    NT_trades[:,total_demand[:, 0] == 0] = 0
 
     # Trade at clearing prices, randomly allocating trades to demanders and suppliers if there is excess demand or supply at the clearing price
     #PF_trades = np.zeros_like(PF_holdings)
     #HF_trades = np.zeros_like(HF_holdings)
+    #NT_trades = np.zeros_like(NT_holdings)
 
     surplus_demand = demand_supply[np.arange(len(demand_supply)), price_indices]
     
@@ -54,6 +48,6 @@ def find_clearing_price_auction(PF_demands, HF_demands, PF_holdings,HF_holdings,
     # Update holdings based on trades
     PF_holdings = PF_holdings + PF_trades
     HF_holdings = HF_holdings + HF_trades
+    NT_holdings = NT_holdings + NT_trades
 
-    return clearing_prices, PF_holdings, HF_holdings
-    
+    return clearing_prices, PF_holdings, HF_holdings, NT_holdings

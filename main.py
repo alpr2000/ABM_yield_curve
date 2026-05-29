@@ -41,6 +41,8 @@ from demand_functions import *
 from supply_functions import *
 from bond_auction import *
 from parameters import *
+from utils import *
+from market_clearing_functions import *
 
 ###### Initial conditions ######
 
@@ -77,8 +79,8 @@ PF_cash = PF_cash + np.sum(new_liabilities*pf_fair_price(base_rate, term_premium
 
 ###### Hedge funds and noise traders
 
-HF_holdings = np.random.uniform(0, 100, size=(N_hedge_funds, len(maturity_spectrum)))
-NT_holdings = np.random.uniform(0, 100, size=(N_noise_traders, len(maturity_spectrum)))
+HF_holdings = np.random.randint(0, 100, size=(N_hedge_funds, len(maturity_spectrum)))
+NT_holdings = np.random.randint(0, 100, size=(N_noise_traders, len(maturity_spectrum)))
 
 HF_cash = np.random.uniform(0, 500000, size=N_hedge_funds)
 NT_cash = np.random.uniform(400000, 500000, size=N_noise_traders)
@@ -145,3 +147,64 @@ NT_supply = nt_supply_all_maturities(price_spectrum,
                                      NT_holdings, 
                                      NT_fair_prices,
                                      nt_cash_perc)
+
+
+####### ALL VARIABLES ARE NOW INITIALISED, WE CAN PROCEED TO SIMULATION STEPS IN main.py
+
+save_yield_curve = True
+save_holdings = False
+
+yield_curves =[]
+holdings_over_time = []
+
+for i in range(simulation_periods):
+    print(f"Simulation period {i+1} of {simulation_periods}")
+
+
+    gov_supply = stochastic_bond_supply(gov_auc_q, maturity_spectrum)
+    #Primary market auction
+    clearing_prices_gov, PF_holdings_1, HF_holdings_1 = find_clearing_price_auction(PF_demand, HF_demand, PF_holdings, HF_holdings, gov_supply, price_spectrum)
+
+    # Reduce cash
+    PF_cash = PF_cash - np.sum((PF_holdings_1 - PF_holdings)*clearing_prices_gov, axis=1)
+    HF_cash = HF_cash - np.sum((HF_holdings_1 - HF_holdings)*clearing_prices_gov, axis=1)
+
+
+    #Update PF and HF holdings based on primary market auction results
+    PF_holdings = PF_holdings_1
+    HF_holdings = HF_holdings_1
+
+    #Reduce demand for PFs and HFs based on primary market results
+    PF_demand = pf_demand_all_maturities(price_spectrum,
+                                     maturity_spectrum,
+                                     pf_fair_price(base_rate,
+                                                   term_premium,
+                                                   maturity_spectrum),
+                                     PF_liabilities-PF_holdings)
+    PF_demand = cap_demand_by_cash(PF_demand, price_spectrum, PF_cash, pf_liquidity_buffer)
+
+    HF_demand = hf_demand_all_maturities(price_spectrum,
+                                     maturity_spectrum,
+                                     HF_fair_prices,
+                                     scale_demand,
+                                     HF_holdings)
+    HF_demand = cap_demand_by_cash(HF_demand, price_spectrum, HF_cash, hf_liquidity_buffer)
+
+    #Secondary market clearing
+    clearing_prices, PF_holdings2, HF_holdings2, NT_holdings2 = clear_secondary(PF_demand, HF_demand, NT_demand, HF_supply, NT_supply, price_spectrum, PF_holdings, HF_holdings, NT_holdings)
+    
+
+    #Check that the secondary market was zero-sum
+    print("Change in total holdings across all agents (should be 0): ", PF_holdings2.sum() + HF_holdings2.sum() + NT_holdings2.sum() - PF_holdings.sum() - HF_holdings.sum() - NT_holdings.sum())
+    
+    
+    PF_holdings = PF_holdings2
+    HF_holdings = HF_holdings2
+    NT_holdings = NT_holdings2
+
+    if save_yield_curve:
+        yield_curve = get_yield_curve(clearing_prices, maturity_spectrum)
+        yield_curves.append(yield_curve)
+    
+    if save_holdings:
+        holdings_over_time.append((PF_holdings.copy(), HF_holdings.copy(), NT_holdings.copy()))

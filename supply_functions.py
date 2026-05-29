@@ -46,6 +46,9 @@ def hf_supply_all_maturities(price_spectrum, maturity_spectrum, fair_prices, sca
 
     # Cap supply by holdings
     supply_array = np.minimum(supply_array, holdings_grid)
+    
+    # Round to integer bond quantities
+    supply_array = np.floor(supply_array)
 
     return supply_array
 
@@ -66,7 +69,7 @@ def nt_supply_all_maturities(price_spectrum, maturity_spectrum, NT_holdings, fai
     
     supply_array = np.exp(-0.5 * ((price_spectrum - fair_grid) / 5) ** 2)
 
-    supply_array = NT_holdings * supply_array * nt_cash_perc
+    supply_array = NT_holdings.reshape(-1,1) * supply_array * nt_cash_perc
     
     supply_array = np.floor(supply_array)
 
