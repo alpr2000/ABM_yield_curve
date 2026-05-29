@@ -86,79 +86,90 @@ HF_cash = np.random.uniform(0, 500000, size=N_hedge_funds)
 NT_cash = np.random.uniform(400000, 500000, size=N_noise_traders)
 
 
-#######################
-#######################
-# DEMAND FUNCTIONS
-#######################
-#######################
-
-################## Pension Fund Demand Functions ##################
-PF_demand = pf_demand_all_maturities(price_spectrum,
-                                     maturity_spectrum,
-                                     pf_fair_price(base_rate,
-                                                   term_premium,
-                                                   maturity_spectrum),
-                                     PF_liabilities-PF_holdings)
-
-PF_demand = cap_demand_by_cash(PF_demand, price_spectrum, PF_cash, pf_liquidity_buffer)
-
-#################### Hedge Fund Demand Functions ##################
-
-HF_fair_prices = hf_fund_fair_price(base_rate,
-                                    term_premium,
-                                    maturity_spectrum,
-                                    N_hedge_funds)
-
-HF_demand = hf_demand_all_maturities(price_spectrum,
-                                     maturity_spectrum,
-                                     HF_fair_prices,
-                                     scale_demand,
-                                     HF_holdings)
-
-HF_demand = cap_demand_by_cash(HF_demand, price_spectrum, HF_cash, hf_liquidity_buffer)
-
-
-#################### Noise Trader Demand Functions ##################
-
-NT_fair_prices = nt_fair_price(base_rate, term_premium, maturity_spectrum)
-
-NT_demand = noise_trader_demand(price_spectrum, NT_fair_prices, scale_noise_trader, NT_cash, nt_cash_perc)
-
-
-#######################
-#######################
-# SUPPLY FUNCTIONS
-#######################
-#######################
-
-#################### Hedge Fund Supply Functions ##################
-
-HF_supply = hf_supply_all_maturities(price_spectrum,
-                                     maturity_spectrum,
-                                     HF_fair_prices,
-                                     scale_demand,
-                                     HF_holdings)
-
-
-#################### Noise Trader Supply Functions ##################
-
-NT_supply = nt_supply_all_maturities(price_spectrum,
-                                     maturity_spectrum,
-                                     NT_holdings, 
-                                     NT_fair_prices,
-                                     nt_cash_perc)
-
-
 ####### ALL VARIABLES ARE NOW INITIALISED, WE CAN PROCEED TO SIMULATION STEPS IN main.py
 
 save_yield_curve = True
-save_holdings = False
+save_holdings = True
 
 yield_curves =[]
 holdings_over_time = []
 
 for i in range(simulation_periods):
     print(f"Simulation period {i+1} of {simulation_periods}")
+
+    # Get demand and supply
+
+        
+    #######################
+    #######################
+    # DEMAND FUNCTIONS
+    #######################
+    #######################
+
+    new_liabilities = pf_gen_liability(maturity_spectrum, 5, N_pension_funds)
+    PF_liabilities=PF_liabilities+new_liabilities
+
+    # PFs get cash proportional to the new liabilities*fair_price of each liability and scaled up by PF_margin
+    PF_cash = PF_cash + np.sum(new_liabilities*pf_fair_price(base_rate, term_premium, maturity_spectrum), axis=1)*pf_margin
+
+
+    ################## Pension Fund Demand Functions ##################
+    PF_demand = pf_demand_all_maturities(price_spectrum,
+                                        maturity_spectrum,
+                                        pf_fair_price(base_rate,
+                                                    term_premium,
+                                                    maturity_spectrum),
+                                        PF_liabilities-PF_holdings)
+
+    PF_demand = cap_demand_by_cash(PF_demand, price_spectrum, PF_cash, pf_liquidity_buffer)
+
+    #################### Hedge Fund Demand Functions ##################
+
+    HF_fair_prices = hf_fund_fair_price(base_rate,
+                                        term_premium,
+                                        maturity_spectrum,
+                                        N_hedge_funds)
+
+    HF_demand = hf_demand_all_maturities(price_spectrum,
+                                        maturity_spectrum,
+                                        HF_fair_prices,
+                                        scale_demand,
+                                        HF_holdings)
+
+    HF_demand = cap_demand_by_cash(HF_demand, price_spectrum, HF_cash, hf_liquidity_buffer)
+
+
+    #################### Noise Trader Demand Functions ##################
+
+    NT_fair_prices = nt_fair_price(base_rate, term_premium, maturity_spectrum)
+
+    NT_demand = noise_trader_demand(price_spectrum, NT_fair_prices, scale_noise_trader, NT_cash, nt_cash_perc)
+
+
+    #######################
+    #######################
+    # SUPPLY FUNCTIONS
+    #######################
+    #######################
+
+    #################### Hedge Fund Supply Functions ##################
+
+    HF_supply = hf_supply_all_maturities(price_spectrum,
+                                        maturity_spectrum,
+                                        HF_fair_prices,
+                                        scale_demand,
+                                        HF_holdings)
+
+
+    #################### Noise Trader Supply Functions ##################
+
+    NT_supply = nt_supply_all_maturities(price_spectrum,
+                                        maturity_spectrum,
+                                        NT_holdings, 
+                                        NT_fair_prices,
+                                        nt_cash_perc)
+
+
 
 
     gov_supply = stochastic_bond_supply(gov_auc_q, maturity_spectrum)
@@ -208,3 +219,24 @@ for i in range(simulation_periods):
     
     if save_holdings:
         holdings_over_time.append((PF_holdings.copy(), HF_holdings.copy(), NT_holdings.copy()))
+
+
+    ##### BONDS MATURE #####
+    PF_cash += 100*PF_holdings[:,0]
+    HF_cash += 100*HF_holdings[:,0]
+    NT_cash += 100*NT_holdings[:,0]
+
+    #Shift holdings down one month, with zero holdings at the longest maturity
+    PF_holdings[:, :-1] = PF_holdings[:, 1:]
+    PF_holdings[:, -1] = 0
+    HF_holdings[:, :-1] = HF_holdings[:, 1:]
+    HF_holdings[:, -1] = 0
+    NT_holdings[:, :-1] = NT_holdings[:, 1:]
+    NT_holdings[:, -1] = 0
+
+
+
+# ANALYSIS AND PLOTTING
+
+# Plot yield curves overlayed
+plot_yield_curves(yield_curves, maturity_spectrum)
