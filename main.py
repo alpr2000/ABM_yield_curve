@@ -46,7 +46,7 @@ from market_clearing_functions import *
 
 ###### Initial conditions ######
 
-base_rate = 100.2 # This means a 0.2% return over 1 month, which annualizes to approximately 2.43%
+base_rate = 100.6 # This means a 0.6% return over 3 months, which annualizes to approximately 2.41%
 
 
 ################################
@@ -95,7 +95,7 @@ yield_curves =[]
 holdings_over_time = []
 
 for i in range(simulation_periods):
-    print(f"Simulation period {i+1} of {simulation_periods}")
+    #print(f"Simulation period {i+1} of {simulation_periods}")
 
     # Get demand and supply
 
@@ -206,7 +206,7 @@ for i in range(simulation_periods):
     
 
     #Check that the secondary market was zero-sum
-    print("Change in total holdings across all agents (should be 0): ", PF_holdings2.sum() + HF_holdings2.sum() + NT_holdings2.sum() - PF_holdings.sum() - HF_holdings.sum() - NT_holdings.sum())
+    #print("Change in total holdings across all agents (should be 0): ", PF_holdings2.sum() + HF_holdings2.sum() + NT_holdings2.sum() - PF_holdings.sum() - HF_holdings.sum() - NT_holdings.sum())
     
     
     PF_holdings = PF_holdings2

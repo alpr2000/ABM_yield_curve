@@ -34,15 +34,15 @@ def hf_supply_all_maturities(price_spectrum, maturity_spectrum, fair_prices, sca
     fair_prices = np.asarray(fair_prices)
     HF_holdings = np.asarray(HF_holdings)
 
-    # Reshape for broadcasting to (25, 360, 200)
-    price_grid = price_spectrum  # shape (200,)
-    fair_grid = fair_prices[:, :, np.newaxis]  # shape (25, 360, 1)
-    holdings_grid = HF_holdings[:, :, np.newaxis]  # shape (25, 360, 1)
+    # Reshape for broadcasting with explicit dimensions
+    fair_grid = fair_prices[:, :, np.newaxis]  # shape (25, N_mat, 1)
+    price_grid = price_spectrum[np.newaxis, np.newaxis, :]  # shape (1, 1, N_price)
+    holdings_grid = HF_holdings[:, :, np.newaxis]  # shape (25, N_mat, 1)
 
     # Supply increases quadratically when price > fair_price
-    supply_array = price_grid - fair_grid
-    supply_array = (scale_demand * supply_array) ** 2
-    supply_array[price_grid <= fair_grid] = 0
+    # Using np.maximum() is faster than boolean indexing
+    diff = price_grid - fair_grid
+    supply_array = np.maximum(diff, 0.0) ** 2 * (scale_demand ** 2)
 
     # Cap supply by holdings
     supply_array = np.minimum(supply_array, holdings_grid)

@@ -2,7 +2,7 @@ import numpy as np
 
 # INPUTS
 ################################
-simulation_periods = 10
+simulation_periods = 100
 
 N_years = 30
 price_granularity = 0.01
@@ -12,7 +12,7 @@ N_hedge_funds = 25
 N_noise_traders = 1 # Can use 1 representative noise trader since they have no strategic behavior
 scale_demand = 1
 
-term_premium = 0.000002 #monthly term premium
+term_premium = 0.000008 #monthly term premium
 
 hf_random_type = 0
 # 0: Simple slope deviation
@@ -31,7 +31,7 @@ gov_auc_q = 100000
 
 ########################################
 
-maturity_spectrum = np.linspace(1, 12 * N_years, 12 * N_years)  # Maturities from 1 to 30 years
+maturity_spectrum = np.linspace(3, 12 * N_years, 4 * N_years)  # Quarterly maturities from 3 months to 30 years (120 points)
 
 price_spectrum = np.arange(0, 125, price_granularity)  # Price spectrum from 0 to 200 with specified granularity
 
