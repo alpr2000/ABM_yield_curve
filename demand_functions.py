@@ -135,27 +135,25 @@ def allocate_hf_funds(base_rate, term_premium, maturity_spectrum, HF_fair_prices
 def hf_demand_all_maturities(price_spectrum, maturity_spectrum, fair_prices, scale_demand, HF_holdings):
     price_spectrum = np.asarray(price_spectrum)
     fair_prices = np.asarray(fair_prices)
+    maturity_spectrum = np.asarray(maturity_spectrum)
     HF_holdings = np.asarray(HF_holdings)
 
-    N_hf, N_mat = fair_prices.shape
-    N_price = len(price_spectrum)
-    
-    # Precompute position limits once (avoids redundant division in inner loop)
-    holdings_value = np.sum(HF_holdings * fair_prices, axis=1, keepdims=True)  # shape (25, 1)
-    position_limit_value = 0.5 * holdings_value / N_mat  # shape (25, 1)
-    quantity_limit = position_limit_value / fair_prices  # shape (25, N_mat)
+    # Reshape for broadcasting to (25, 360, 200)
+    price_grid = price_spectrum  # shape (200,)
+    fair_grid = fair_prices[:, :, np.newaxis]  # shape (25, 360, 1)
 
-    # Reshape for broadcasting with explicit dimensions
-    fair_grid = fair_prices[:, :, np.newaxis]  # shape (25, N_mat, 1)
-    price_grid = price_spectrum[np.newaxis, np.newaxis, :]  # shape (1, 1, N_price)
-    quantity_limit = quantity_limit[:, :, np.newaxis]  # shape (25, N_mat, 1)
-
-    # Compute demand: (fair_price - price)^2 where price < fair_price, else 0
-    # Using np.maximum() is faster than boolean indexing
-    diff = fair_grid - price_grid  # shape (25, N_mat, N_price)
-    demand_array = np.maximum(diff, 0.0) ** 2 * (scale_demand ** 2)
+    demand_array = -price_grid + fair_grid
+    demand_array = (scale_demand * demand_array) ** 2
+    demand_array[price_grid > fair_grid] = 0
     
-    # Apply position limit cap
+    # Cap demand: max 0.5*(1/360) of total holdings value per maturity
+    # Total holdings value per fund: sum(holdings * fair_prices) across maturities
+    holdings_value = np.sum(HF_holdings * fair_prices, axis=1)  # shape (25,)
+    position_limit_value = 0.5 * holdings_value / 360  # max value per maturity: shape (25,)
+
+    # Cap demand by position limit: convert value limit to quantity limit for each maturity
+    quantity_limit = position_limit_value[:, np.newaxis] / fair_prices  # shape (25, 360)
+    quantity_limit = quantity_limit[:, :, np.newaxis]  # shape (25, 360, 1) for broadcasting
     demand_array = np.minimum(demand_array, quantity_limit)
     
     # Round to integer bond quantities
