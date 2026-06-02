@@ -90,12 +90,18 @@ NT_cash = np.random.uniform(400000, 500000, size=N_noise_traders)
 
 save_yield_curve = True
 save_holdings = True
+save_liabilities = True
+save_cash = True
 
 yield_curves =[]
 holdings_over_time = []
+liabilities_over_time = []
+cash_over_time = []
+clearing_prices_over_time = []
 
 for i in range(simulation_periods):
     #print(f"Simulation period {i+1} of {simulation_periods}")
+    
 
     # Get demand and supply
 
@@ -213,18 +219,12 @@ for i in range(simulation_periods):
     HF_holdings = HF_holdings2
     NT_holdings = NT_holdings2
 
-    if save_yield_curve:
-        yield_curve = get_yield_curve(clearing_prices, maturity_spectrum)
-        yield_curves.append(yield_curve)
-    
-    if save_holdings:
-        holdings_over_time.append((PF_holdings.copy(), HF_holdings.copy(), NT_holdings.copy()))
-
-
     ##### BONDS MATURE #####
     PF_cash += 100*PF_holdings[:,0]
     HF_cash += 100*HF_holdings[:,0]
     NT_cash += 100*NT_holdings[:,0]
+
+    PF_cash -= 100*PF_liabilities[:,0]
 
     #Shift holdings down one month, with zero holdings at the longest maturity
     PF_holdings[:, :-1] = PF_holdings[:, 1:]
@@ -233,10 +233,32 @@ for i in range(simulation_periods):
     HF_holdings[:, -1] = 0
     NT_holdings[:, :-1] = NT_holdings[:, 1:]
     NT_holdings[:, -1] = 0
+    
+    # Also shift liabilities to match
+    PF_liabilities[:, :-1] = PF_liabilities[:, 1:]
+    PF_liabilities[:, -1] = 0
 
+    
+    if save_yield_curve:
+        yield_curve = get_yield_curve(clearing_prices, maturity_spectrum)
+        yield_curves.append(yield_curve)
+    
+    if save_holdings:
+        holdings_over_time.append((PF_holdings.copy(), HF_holdings.copy(), NT_holdings.copy()))
 
+    if save_liabilities:
+        liabilities_over_time.append(PF_liabilities.copy())
+    
+    clearing_prices_over_time.append(clearing_prices.copy())
+
+    if save_cash:
+        cash_over_time.append((PF_cash.copy(), HF_cash.copy(), NT_cash.copy()))
 
 # ANALYSIS AND PLOTTING
 
 # Plot yield curves overlayed
 plot_yield_curves(yield_curves, maturity_spectrum)
+
+plot_pf_holdings_over_time(holdings_over_time, pf_index=0)
+plot_pf_liabilities_over_time(liabilities_over_time, pf_index=0)
+plot_pf_cash_over_time(cash_over_time, pf_index=0)
