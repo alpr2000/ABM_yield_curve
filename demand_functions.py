@@ -29,12 +29,23 @@ def pf_gen_liability(maturity_spectrum, scale_liability, N_pension_funds):
     new_liabilities[:, :len(maturity_spectrum) // 4] = 0
     return new_liabilities*scale_liability
 
+
+def pf_inf_expectations(inflation_rate, maturity_spectrum, target_inflation):
+    # Assume PFs expect inflation to drop with actual inflation persistence 0.95
+    # Get expected inflation at each maturity
+    expected_inflation = target_inflation + 0.95**maturity_spectrum * (inflation_rate - target_inflation)
+    return expected_inflation
+
 # Performs the pension fund's estimate of the fair price
-def pf_fair_price(base_rate, term_premium, maturity_spectrum):
+def pf_fair_price(base_rate, term_premium, maturity_spectrum, inflation_rate, target_inflation):
     #As all bonds are zero-coupon, the fair price is simply the discounted value of the liability at maturity
-    monthly_rate = (base_rate - 100) / 100
-    yield_curve = monthly_rate + term_premium * maturity_spectrum
+    expected_inflation = pf_inf_expectations(inflation_rate, maturity_spectrum, target_inflation)
+    quarterly_rate = (base_rate - 100) / 100
+    yield_curve = quarterly_rate + term_premium * maturity_spectrum
     fair_price = 100 / (1 + yield_curve) ** maturity_spectrum
+    expected_cumulative_inflation = np.cumprod(expected_inflation)
+    #Adjust fair prices
+    fair_price = fair_price / expected_cumulative_inflation
     return fair_price
 
 # Calculates the pension fund's demand for a bond of a particular liability
@@ -84,12 +95,49 @@ def hf_curve_random(fair_price, maturity_spectrum, hf_random_type, hf_heterogene
         return random_curve
     else:
         raise ValueError("Invalid hedge fund random type")
+
+
+def hf_inf_expectations(inflation_rate, maturity_spectrum, hf_persistence, hf_long_term_inflation):
+    """
+    HFs have heterogeneous inflation expectations with fund-specific persistence and long-run beliefs
     
+    Parameters:
+    -----------
+    inflation_rate : float
+        Current inflation rate
+    maturity_spectrum : ndarray
+        Array of maturities
+    target_inflation : float
+        Central bank target inflation (used if hf_long_term_inflation not provided)
+    hf_persistence : ndarray, shape (N_hedge_funds,)
+        Persistence parameter for each HF (0 to 1)
+    hf_long_term_inflation : ndarray, shape (N_hedge_funds,)
+        Long-term inflation belief for each HF
+    
+    Returns:
+    --------
+    expected_inflation : ndarray, shape (N_hedge_funds, N_maturities)
+        Expected inflation at each maturity for each HF
+    """
+    hf_persistence = np.asarray(hf_persistence)
+    hf_long_term_inflation = np.asarray(hf_long_term_inflation)
+    maturity_spectrum = np.asarray(maturity_spectrum)
+    
+    # Reshape for broadcasting: (N_hedge_funds, 1) and (N_maturities,)
+    persistence_grid = hf_persistence[:, np.newaxis]
+    long_term_grid = hf_long_term_inflation[:, np.newaxis]
+    maturity_grid = maturity_spectrum[np.newaxis, :]
+    
+    # AR(1) with heterogeneous parameters: π_expected = π_lr + ρ^m * (π_current - π_lr)
+    expected_inflation = long_term_grid + (persistence_grid ** maturity_grid) * (inflation_rate - long_term_grid)
+    
+    return expected_inflation
+
 # Create function to create each hedge fund proprietary pricing curve based on the current base rate and a random seed
-def hf_fund_fair_price(base_rate, term_premium, maturity_spectrum, N_hedge_funds):
+def hf_fund_fair_price_random(base_rate, term_premium, maturity_spectrum, N_hedge_funds):
     # Base curve is simply the fair price curve based on the current base rate
-    monthly_rate = (base_rate - 100) / 100
-    yield_curve = monthly_rate + term_premium * maturity_spectrum
+    quarterly_rate = (base_rate - 100) / 100
+    yield_curve = quarterly_rate + term_premium * maturity_spectrum
     fair_price = 100 / (1 + yield_curve) ** maturity_spectrum
 
     # Generate N_hedge_funds different slopes, one per fund
@@ -102,6 +150,20 @@ def hf_fund_fair_price(base_rate, term_premium, maturity_spectrum, N_hedge_funds
     return fair_prices
 
 
+def hf_fund_fair_price_hetero_expect(base_rate, term_premium, maturity_spectrum, N_hedge_funds, hf_persistence, hf_long_term_inflation, inflation_rate):
+    # Base curve is simply the fair price curve based on the current base rate
+    quarterly_rate = (base_rate - 100) / 100
+    yield_curve = quarterly_rate + term_premium * maturity_spectrum
+    fair_price = 100 / (1 + yield_curve) ** maturity_spectrum
+
+    # Get heterogeneous inflation expectations for each HF
+    expected_inflation = hf_inf_expectations(inflation_rate, maturity_spectrum, hf_persistence, hf_long_term_inflation)
+    expected_cumulative_inflation = np.cumprod(expected_inflation, axis=1)
+    # Apply each slope to the fair price curve to get N_hedge_funds independent curves
+    fair_prices = (expected_cumulative_inflation.T * fair_price).T  # Shape (N_hedge_funds, N_maturities)
+
+    return fair_prices
+
 # Produces the demand curve for a single hedge fund and a single maturity
 def hf_demand_single(price_spectrum, fair_price, funds, scale_demand):
     demand_curve = -price_spectrum + fair_price
@@ -112,8 +174,8 @@ def hf_demand_single(price_spectrum, fair_price, funds, scale_demand):
     return demand_curve
 
 def allocate_hf_funds(base_rate, term_premium, maturity_spectrum, HF_fair_prices, HF_cash):
-    monthly_rate = (base_rate - 100) / 100
-    yield_curve = monthly_rate + term_premium * maturity_spectrum
+    quarterly_rate = (base_rate - 100) / 100
+    yield_curve = quarterly_rate + term_premium * maturity_spectrum
     fair_price = 100 / (1 + yield_curve) ** maturity_spectrum
     
     price_diff = HF_fair_prices - fair_price[np.newaxis,:]

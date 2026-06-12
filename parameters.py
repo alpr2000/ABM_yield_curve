@@ -2,7 +2,7 @@ import numpy as np
 
 # INPUTS
 ################################
-simulation_periods = 100
+simulation_periods = 50
 
 N_years = 30
 price_granularity = 0.01

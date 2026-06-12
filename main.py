@@ -43,16 +43,30 @@ from bond_auction import *
 from parameters import *
 from utils import *
 from market_clearing_functions import *
+from cb_and_inflation import *
 
 ###### Initial conditions ######
 
 base_rate = 100.6 # This means a 0.6% return over 3 months, which annualizes to approximately 2.41%
 
 
+# Get exogenous inflation path
+
+# Below: Inflation path with hump at 4%, smooth path
+#inf = inflation_ar_process(1.005, 1.005, 0.95, 0.0007, 100, seed=934)
+
+#Below: Inflation path with large peak at 5%, falls back to ~2.5%
+inf = inflation_asymmetric_process(1.005, 1.005, 0.95, 0.0005, 100, seed=142)
+
+target_inflation = 1.005
+
+# Get taylor rule interest rate path based on inflation path
+interest_rate_path = set_interest_rate_taylor_rule(inf, base_rate/100, target_inflation, 1.5)
+
 ################################
 # Initialisation type 1, funds hold a random distribution of bonds across the
 # maturity spectrum. 
-################################
+################################a
 
 # A note on scale:
 # Funds hold up to ~100 bonds at each maturity, each of which is priced at an average of ~50
@@ -111,6 +125,8 @@ for i in range(simulation_periods):
     # DEMAND FUNCTIONS
     #######################
     #######################
+    inflation_rate = inf[i]
+    base_rate = interest_rate_path[i]
 
     new_liabilities = pf_gen_liability(maturity_spectrum, 5, N_pension_funds)
     PF_liabilities=PF_liabilities+new_liabilities
@@ -131,10 +147,16 @@ for i in range(simulation_periods):
 
     #################### Hedge Fund Demand Functions ##################
 
-    HF_fair_prices = hf_fund_fair_price(base_rate,
+    hf_persistence = np.random.uniform(0.9, 0.99, size=N_hedge_funds) # Each HF has a random persistence in their inflation expectations, between 0.9 and 0.99
+    hf_long_term_inflation = np.random.uniform(1.002, 1.008, size=N_hedge_funds) # Each HF has a random long term inflation expectation between 0.2% and 0.8% per month
+
+    HF_fair_prices = hf_fund_fair_price_hetero_expect(base_rate,
                                         term_premium,
                                         maturity_spectrum,
-                                        N_hedge_funds)
+                                        N_hedge_funds,
+                                        hf_persistence,
+                                        hf_long_term_inflation,
+                                        inflation_rate)
 
     HF_demand = hf_demand_all_maturities(price_spectrum,
                                         maturity_spectrum,
@@ -210,6 +232,10 @@ for i in range(simulation_periods):
     #Secondary market clearing
     clearing_prices, PF_holdings2, HF_holdings2, NT_holdings2 = clear_secondary(PF_demand, HF_demand, NT_demand, HF_supply, NT_supply, price_spectrum, PF_holdings, HF_holdings, NT_holdings)
     
+    # Reduce cash based on secondary market trades
+    PF_cash = PF_cash - np.sum((PF_holdings2 - PF_holdings)*clearing_prices, axis=1)
+    HF_cash = HF_cash - np.sum((HF_holdings2 - HF_holdings)*clearing_prices, axis=1)
+    NT_cash = NT_cash - np.sum((NT_holdings2 - NT_holdings)*clearing_prices, axis=1)
 
     #Check that the secondary market was zero-sum
     #print("Change in total holdings across all agents (should be 0): ", PF_holdings2.sum() + HF_holdings2.sum() + NT_holdings2.sum() - PF_holdings.sum() - HF_holdings.sum() - NT_holdings.sum())
