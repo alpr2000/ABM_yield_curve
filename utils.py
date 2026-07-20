@@ -21,6 +21,51 @@ def plot_yield_curves(yield_curves, maturity_spectrum):
     plt.grid()
     plt.show()
 
+def plot_yield_curves_overlayed(yield_curves, maturity_spectrum, time_intervention):
+    plt.figure(figsize=(10, 6))
+    for i, yield_curve in enumerate(yield_curves):
+        if i < time_intervention:
+            plt.plot(maturity_spectrum, yield_curve, color='grey', alpha=0.2)
+        if i == time_intervention:
+            plt.plot(maturity_spectrum, yield_curve, color='blue', linewidth=2)
+        if i > time_intervention:
+            plt.plot(maturity_spectrum, yield_curve, color='blue', alpha=0.2)
+            plt.xlabel('Maturity (months)')
+    plt.ylabel('Yield')
+    plt.title('Yield Curves Over Time')
+    plt.legend()
+    plt.grid()
+    plt.show()
+
+
+def plot_tenor_yield_over_time(yield_curves, maturity_spectrum, tenor_months):
+    """
+    Plots the yield of a single tenor over time.
+
+    Parameters
+    ----------
+    yield_curves : list of arrays
+        List of yield curves, one per simulation period.
+    maturity_spectrum : array-like
+        The maturity grid used to construct the yield curves.
+    tenor_months : float
+        The tenor to extract, e.g. 3, 6, 12, 60.
+    """
+    maturity_spectrum = np.asarray(maturity_spectrum)
+    yields_over_time = []
+
+    for yield_curve in yield_curves:
+        idx = np.argmin(np.abs(maturity_spectrum - tenor_months))
+        yields_over_time.append(((1+yield_curve[idx])**4 - 1) * 100)
+
+    plt.figure(figsize=(10, 4))
+    plt.plot(yields_over_time, marker='o')
+    plt.xlabel('Time')
+    plt.ylabel(f'Yield at {tenor_months}-month tenor')
+    plt.title(f'Yield at {tenor_months}-month tenor over time')
+    plt.grid(True, alpha=0.3)
+    plt.show()
+
 # A function for viewing the holdings of a specific pension fund over the simulation periods
 def plot_pf_holdings_over_time(holdings_over_time, pf_index):
     """

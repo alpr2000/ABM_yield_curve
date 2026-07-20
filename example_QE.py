@@ -1,40 +1,6 @@
 import numpy as np
 import numpy.random as random
 
-"""""""""""""""""""""""""""""
-Gilt market agent based model
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-This model simulates five agents:
-
-1. Government: Inititates government bond auctions
-
-2. Central Bank: Set interest rates, engages in OMO in the advanced model
-
-3. "Pension Funds": Representing LDI, the buy in auctions and operate in the secondary market
-
-4. "Hedge Funds": Representing leveraged investors, they only operate in the secondary market, profit motivated
-
-5. "Noise Traders": Only operating in the secondary market, they trade randomly, representing retail investors and other non-professional market participants
-
-Step 1: (Every Month 1-12)
-    Central Bank sets interest rates based on a Taylor rule and a stochastic inflation rate based on a simple AR(1) process
-
-Step 2: (Every Month 1)
-    Government initiates bond auction, pension funds buy in based on their demand function
-
-Step 3: (Every Month)
-    Secondary market trading occurs, with pension funds, hedge funds, and noise traders all participating based on their respective strategies
-
-Step 4: (Optional)
-    The central bank may engage in open market operations (OMO) which will be executed as auctions in the secondary market, with pension funds and hedge funds participating based on their demand functions
-
-A NOTE ON SCALE:
-This model considers only zero-coupon bonds of an arbitrary value of 100.
-Bond holdings are expressed in term of the number of bonds
-
-
-"""
 
 # Load functions from other files
 from demand_functions import *
@@ -49,22 +15,16 @@ from cb_and_inflation import *
 
 base_rate = 100.5 # This means a 0.5% return over 3 months, which annualizes to approximately 2.41%
 
+# Low inflation path to warrant a low interest rate environment
+inf = inflation_asymmetric_process(starting_inflation=1.001, i_lr=1.001, phi=0.9, sigma=0.0002, periods=simulation_periods, seed=127)
 
-# Get exogenous inflation path
-
-# Below: Flat inflation path at 1.006
-#inf = inflation_ar_process(1.005, 1.005, 0.95, 0, simulation_periods, seed=934)
-
-# Below: Inflation path with hump at 4%, smooth path
-#inf = inflation_ar_process(1.005, 1.005, 0.95, 0.0007, 100, seed=934)
-
-#Below: Inflation path with large peak at 5%, falls back to ~2.5%
-inf = inflation_asymmetric_process(1.005, 1.005, 0.95, 0.0005, 100, seed=142)
 
 target_inflation = 1.005
 
+
 # Get taylor rule interest rate path based on inflation path
 interest_rate_path = set_interest_rate_taylor_rule(inf, base_rate/100, target_inflation, 1.5)*100
+
 
 ################################
 # Initialisation type 1, funds hold a random distribution of bonds across the
@@ -75,9 +35,7 @@ interest_rate_path = set_interest_rate_taylor_rule(inf, base_rate/100, target_in
 # Funds hold up to ~100 bonds at each maturity, each of which is priced at an average of ~50
 # Their total holdings are therefore of the order of 2e6
 # We give them cash holdings of the order 5e5
-
-
-
+ 
 
 ###### Pensions funds
 #Give initially random but matched liabilities
@@ -102,6 +60,16 @@ NT_holdings = np.random.randint(0, 100, size=(N_noise_traders, len(maturity_spec
 HF_cash = np.random.uniform(0, 500000, size=N_hedge_funds)
 NT_cash = np.random.uniform(400000, 500000, size=N_noise_traders)
 
+
+#####################################
+# Central bank intervention
+#####################################
+
+
+t_CB = 20 # Period at which the central bank starts QE
+maturity_skew = 0.01 # The more positive this is, the more the central bank will buy longer maturity bonds relative to shorter maturity bonds
+skew_constant = 0.5 # The more positive this is, the more the central bank will buy shorter maturity bonds relative to longer maturity bonds
+quantity_cb = 200000 # The total quantity of bonds the central bank will buy in the QE program  
 
 ####### ALL VARIABLES ARE NOW INITIALISED, WE CAN PROCEED TO SIMULATION STEPS IN main.py
 
@@ -178,7 +146,6 @@ for i in range(simulation_periods):
 
     NT_demand = noise_trader_demand(price_spectrum, NT_fair_prices, scale_noise_trader, NT_cash, nt_cash_perc)
 
-
     #######################
     #######################
     # SUPPLY FUNCTIONS
@@ -236,8 +203,14 @@ for i in range(simulation_periods):
                                      HF_holdings)
     HF_demand = cap_demand_by_cash(HF_demand, price_spectrum, HF_cash, hf_liquidity_buffer)
 
+    # Central Bank Intervention
+    if i == t_CB:
+        cb_demand = cb_demand_QE(quantity_cb, maturity_spectrum, maturity_skew, skew_constant)
+    else:
+        cb_demand = np.zeros_like(maturity_spectrum)
+
     #Secondary market clearing
-    clearing_prices, PF_holdings2, HF_holdings2, NT_holdings2 = clear_secondary(PF_demand, HF_demand, NT_demand, HF_supply, NT_supply, price_spectrum, PF_holdings, HF_holdings, NT_holdings)
+    clearing_prices, PF_holdings2, HF_holdings2, NT_holdings2 = clear_secondary_cb(cb_demand, PF_demand, HF_demand, NT_demand, HF_supply, NT_supply, price_spectrum, PF_holdings, HF_holdings, NT_holdings)
     
     # Reduce cash based on secondary market trades
     PF_cash = PF_cash - np.sum((PF_holdings2 - PF_holdings)*clearing_prices, axis=1)
@@ -291,6 +264,9 @@ for i in range(simulation_periods):
 
 # Plot yield curves overlayed
 plot_yield_curves(yield_curves, maturity_spectrum)
+
+plot_yield_curves_overlayed(yield_curves, maturity_spectrum, time_intervention=t_CB)
+plot_tenor_yield_over_time(yield_curves, maturity_spectrum, tenor_months=12)
 
 plot_pf_holdings_over_time(holdings_over_time, pf_index=0)
 plot_pf_liabilities_over_time(liabilities_over_time, pf_index=0)

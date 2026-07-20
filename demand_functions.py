@@ -55,7 +55,7 @@ def pf_demand_individual(price_spectrum, fair_price, liability, time_to_liabilit
         demand_curve=0*price_spectrum
     else:
         #Implement a fermi-dirac-esque demand function
-        urgency = 0.5/(time_to_liability)*fair_price # The more urgent the liability, the higher the urgency factor
+        urgency = 0.2/(time_to_liability+3)*fair_price # The more urgent the liability, the higher the urgency factor
 
         # We assume that if the time to liability is short, the pension fund demands more, pushing their fair price up
         demand_curve = liability/(1 + np.exp((price_spectrum - (fair_price+urgency )/1 )))
@@ -77,7 +77,7 @@ def pf_demand_all_maturities(price_spectrum, maturity_spectrum, fair_prices, lia
     liability_grid = liability_spectrum[:,:, np.newaxis]
     time_grid = maturity_spectrum[:, np.newaxis]
 
-    urgency = 0.5 / time_grid * fair_grid
+    urgency = 0.02 / (time_grid+3) * fair_grid
     demand_array = liability_grid / (1 + np.exp(price_grid - fair_grid - urgency))
     demand_array = np.where(time_grid == 0, 0.0, demand_array)
 
@@ -160,7 +160,7 @@ def hf_fund_fair_price_hetero_expect(base_rate, term_premium, maturity_spectrum,
     expected_inflation = hf_inf_expectations(inflation_rate, maturity_spectrum, hf_persistence, hf_long_term_inflation)
     expected_cumulative_inflation = np.cumprod(expected_inflation, axis=1)
     # Apply each slope to the fair price curve to get N_hedge_funds independent curves
-    fair_prices = (expected_cumulative_inflation.T * fair_price).T  # Shape (N_hedge_funds, N_maturities)
+    fair_prices = (fair_price / expected_cumulative_inflation)
 
     return fair_prices
 
@@ -286,10 +286,20 @@ def cap_demand_by_cash(demand_array, price_spectrum, cash_holdings, liqudity_buf
 
 # The noise trader just demands a normal distribution around the fair price
 
-def nt_fair_price(base_rate, term_premium, maturity_spectrum):
+def nt_inf_expectations(inflation_rate, maturity_spectrum, target_inflation):
+    # Assume PFs expect inflation to drop with actual inflation persistence 0.95
+    # Get expected inflation at each maturity
+    expected_inflation = target_inflation + 0.95**maturity_spectrum * (inflation_rate - target_inflation)
+    return expected_inflation
+
+def nt_fair_price(base_rate, term_premium, maturity_spectrum, inflation_rate, target_inflation):
     monthly_rate = (base_rate - 100) / 100
     yield_curve = monthly_rate + term_premium * maturity_spectrum
     fair_price = 100 / (1 + yield_curve) ** maturity_spectrum
+
+    excepted_cumulative_inflation = np.cumprod(nt_inf_expectations(inflation_rate, maturity_spectrum, target_inflation))
+    fair_price = fair_price / excepted_cumulative_inflation
+
     return fair_price
 
 

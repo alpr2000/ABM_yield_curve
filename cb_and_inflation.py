@@ -34,3 +34,17 @@ def inflation_asymmetric_process(starting_inflation, i_lr, phi, sigma, periods, 
         new_inflation = i_lr + phi * (inflation_series[-1] - i_lr) + shock
         inflation_series.append(new_inflation)
     return np.array(inflation_series)
+
+def cb_demand_QE(quantity, maturity_spectrum, maturity_skew, skew_constant):
+    """
+    Generates the central bank's demand for government bonds based on a quantity-based QE policy
+    """
+
+    # Allocate the quantity of bonds across maturities based on the maturity skew
+    maturity_weights = skew_constant + maturity_spectrum * maturity_skew
+    maturity_weights /= np.sum(maturity_weights)  # Normalize to sum to 1
+    quantities_demanded = quantity * maturity_weights
+
+    #Round to integer bond quantities
+    quantities_demanded = np.floor(quantities_demanded)
+    return quantities_demanded
