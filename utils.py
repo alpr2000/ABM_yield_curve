@@ -55,8 +55,9 @@ def plot_tenor_yield_over_time(yield_curves, maturity_spectrum, tenor_months):
     yields_over_time = []
 
     for yield_curve in yield_curves:
+        yield_curve = np.asarray(yield_curve)
         idx = np.argmin(np.abs(maturity_spectrum - tenor_months))
-        yields_over_time.append(((1+yield_curve[idx])**4 - 1) * 100)
+        yields_over_time.append(yield_curve[idx] * 100)
 
     plt.figure(figsize=(10, 4))
     plt.plot(yields_over_time, marker='o')

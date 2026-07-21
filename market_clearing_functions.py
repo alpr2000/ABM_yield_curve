@@ -75,18 +75,24 @@ def clear_secondary_cb(cb_demands, PF_demands, HF_demands, NT_demands, HF_supply
 
     clearing_prices = price_spectrum[price_indices]
 
+    no_supply = total_supply[np.arange(len(price_indices)), price_indices] == 0
+    no_demand = total_demand[np.arange(len(price_indices)), price_indices] == 0
+
+
     # Find the change in holdings for each agent based on the clearing price
     PF_trades = PF_demands[:, np.arange(len(price_indices)), price_indices]
-    PF_trades[:,total_supply[:, 0] == 0] = 0
-    PF_trades[:,total_demand[:, 0] == 0] = 0
+    PF_trades[:, no_supply] = 0
+    PF_trades[:, no_demand] = 0
     
     HF_trades = HF_demands[:, np.arange(len(price_indices)), price_indices] - HF_supplys[:, np.arange(len(price_indices)), price_indices]
-    HF_trades[:,total_supply[:, 0] == 0] = 0
-    HF_trades[:,total_demand[:, 0] == 0] = 0
+    HF_trades[:, no_supply] = 0
+    HF_trades[:, no_demand] = 0
 
     NT_trades = NT_demands[:, np.arange(len(price_indices)), price_indices] - NT_supplys[:, np.arange(len(price_indices)), price_indices]
-    NT_trades[:,total_supply[:, 0] == 0] = 0
-    NT_trades[:,total_demand[:, 0] == 0] = 0
+    NT_trades[:, no_supply] = 0
+    NT_trades[:, no_demand] = 0
+
+    CB_trades = cb_demands # CB trades are just the demand at the clearing price
 
     # Trade at clearing prices, randomly allocating trades to demanders and suppliers if there is excess demand or supply at the clearing price
     #PF_trades = np.zeros_like(PF_holdings)

@@ -27,11 +27,11 @@ nt_cash_perc = 0.25
 scale_noise_trader = 1000
 
 #Government bond parameters
-gov_auc_q = 100000
+gov_auc_q = 10000
 
 ########################################
 
 maturity_spectrum = np.linspace(3, 12 * N_years, 4 * N_years)  # Quarterly maturities from 3 months to 30 years (120 points)
 
-price_spectrum = np.arange(0, 125, price_granularity)  # Price spectrum from 0 to 200 with specified granularity
+price_spectrum = np.arange(0, 150, price_granularity)  # Price spectrum from 0 to 200 with specified granularity
 

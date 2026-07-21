@@ -42,7 +42,7 @@ def hf_supply_all_maturities(price_spectrum, maturity_spectrum, fair_prices, sca
     # Supply increases quadratically when price > fair_price
     # Using np.maximum() is faster than boolean indexing
     diff = price_grid - fair_grid
-    supply_array = np.maximum(diff, 0.0) ** 2 * (scale_demand ** 2)
+    supply_array = np.maximum(diff, 0.0) ** 1.5 * (scale_demand ** 2)
 
     # Cap supply by holdings
     supply_array = np.minimum(supply_array, holdings_grid)

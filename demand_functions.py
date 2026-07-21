@@ -205,13 +205,13 @@ def hf_demand_all_maturities(price_spectrum, maturity_spectrum, fair_prices, sca
     fair_grid = fair_prices[:, :, np.newaxis]  # shape (25, 360, 1)
 
     demand_array = -price_grid + fair_grid
-    demand_array = (scale_demand * demand_array) ** 2
+    demand_array = (scale_demand * demand_array) ** 1.5
     demand_array[price_grid > fair_grid] = 0
     
     # Cap demand: max 0.5*(1/360) of total holdings value per maturity
     # Total holdings value per fund: sum(holdings * fair_prices) across maturities
     holdings_value = np.sum(HF_holdings * fair_prices, axis=1)  # shape (25,)
-    position_limit_value = 0.5 * holdings_value / 360  # max value per maturity: shape (25,)
+    position_limit_value = 0.75 * holdings_value / 360  # max value per maturity: shape (25,)
 
     # Cap demand by position limit: convert value limit to quantity limit for each maturity
     quantity_limit = position_limit_value[:, np.newaxis] / fair_prices  # shape (25, 360)
