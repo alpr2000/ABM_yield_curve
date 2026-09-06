@@ -17,6 +17,9 @@ from parameters import term_premium
 from parameters import hf_random_type
 from parameters import hf_heterogeneity
 from parameters import pf_liquidity_buffer
+from parameters import hf_fair_price_adjustment
+from parameters import hf_demand_strength
+from parameters import hf_demand_power
 
 ################## Pension Fund Demand Function ##################
 
@@ -150,7 +153,7 @@ def hf_fund_fair_price_random(base_rate, term_premium, maturity_spectrum, N_hedg
     return fair_prices
 
 
-def hf_fund_fair_price_hetero_expect(base_rate, term_premium, maturity_spectrum, N_hedge_funds, hf_persistence, hf_long_term_inflation, inflation_rate):
+def hf_fund_fair_price_hetero_expect(base_rate, term_premium, maturity_spectrum, N_hedge_funds, hf_persistence, hf_long_term_inflation, inflation_rate, hf_fair_price_adjustment=0.0):
     # Base curve is simply the fair price curve based on the current base rate
     quarterly_rate = (base_rate - 100) / 100
     yield_curve = quarterly_rate + term_premium * maturity_spectrum
@@ -160,7 +163,7 @@ def hf_fund_fair_price_hetero_expect(base_rate, term_premium, maturity_spectrum,
     expected_inflation = hf_inf_expectations(inflation_rate, maturity_spectrum, hf_persistence, hf_long_term_inflation)
     expected_cumulative_inflation = np.cumprod(expected_inflation, axis=1)
     # Apply each slope to the fair price curve to get N_hedge_funds independent curves
-    fair_prices = (fair_price / expected_cumulative_inflation)
+    fair_prices = (fair_price / expected_cumulative_inflation) * (1 + hf_fair_price_adjustment)
 
     return fair_prices
 
@@ -204,9 +207,8 @@ def hf_demand_all_maturities(price_spectrum, maturity_spectrum, fair_prices, sca
     price_grid = price_spectrum  # shape (200,)
     fair_grid = fair_prices[:, :, np.newaxis]  # shape (25, 360, 1)
 
-    demand_array = -price_grid + fair_grid
-    demand_array = (scale_demand * demand_array) ** 1.5
-    demand_array[price_grid > fair_grid] = 0
+    demand_array = np.maximum(fair_grid - price_grid, 0.0)
+    demand_array = (hf_demand_strength * scale_demand * demand_array) ** hf_demand_power
     
     # Cap demand: max 0.5*(1/360) of total holdings value per maturity
     # Total holdings value per fund: sum(holdings * fair_prices) across maturities

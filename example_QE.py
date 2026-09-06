@@ -11,6 +11,14 @@ from utils import *
 from market_clearing_functions import *
 from cb_and_inflation import *
 
+
+
+###### SEED for reproducibility ######
+
+SEED = 42
+np.random.seed(SEED)
+
+
 ###### Initial conditions ######
 
 base_rate = 100.2 # This means a 0.2% return over 3 months, which annualizes to approximately 0.8% per year, which is a low interest rate environment
@@ -82,7 +90,7 @@ NT_cash = np.random.uniform(400000, 500000, size=N_noise_traders)
 #####################################
 
 
-t_CB = 10 # Period at which the central bank starts QE
+t_CB = 5 # Period at which the central bank starts QE
 maturity_skew = 0.01 # The more positive this is, the more the central bank will buy longer maturity bonds relative to shorter maturity bonds
 skew_constant = 0.5 # The more positive this is, the more the central bank will buy shorter maturity bonds relative to longer maturity bonds
 quantity_cb = 100000 # The total quantity of bonds the central bank will buy in the QE program  
@@ -105,7 +113,7 @@ clearing_prices_over_time = []
 hf_trades_over_time = []
 primary_clearing_prices_over_time = []  # List to store primary market clearing prices over time
 
-for i in range(20):
+for i in range(10):
     #print(f"Simulation period {i+1} of {simulation_periods}")
 
 
@@ -275,7 +283,7 @@ for i in range(20):
 
 
     ############### Primary market auction #####################
-    gov_supply = stochastic_bond_supply(gov_auc_q, maturity_spectrum)
+    gov_supply = stochastic_bond_supply(gov_auc_q/2, maturity_spectrum)
 
     clearing_prices_gov, PF_holdings_prim, HF_holdings_prim = find_clearing_price_auction(PF_demand, HF_demand, PF_holdings, HF_holdings, gov_supply, price_spectrum)
 

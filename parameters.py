@@ -19,6 +19,9 @@ hf_random_type = 0
 
 hf_heterogeneity = 0.0001
 hf_liquidity_buffer = 0.2
+hf_fair_price_adjustment = 0.05
+hf_demand_strength = 1.25
+hf_demand_power = 1.5
 
 pf_margin = 1.25
 pf_liquidity_buffer =0.2

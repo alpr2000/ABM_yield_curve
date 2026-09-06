@@ -67,6 +67,46 @@ def plot_tenor_yield_over_time(yield_curves, maturity_spectrum, tenor_months):
     plt.grid(True, alpha=0.3)
     plt.show()
 
+
+def  plot_tenor_yield_over_time_multiple(yield_curves_by_series, maturity_spectrum, tenor_months, title=None):
+    """
+    Plots the yield of a single tenor over time for multiple scenarios or series.
+
+    Parameters
+    ----------
+    yield_curves_by_series : dict or list-like
+        Either a mapping of scenario name to a list of yield curves, or a list-like
+        collection of such lists.
+    maturity_spectrum : array-like
+        The maturity grid used to construct the yield curves.
+    tenor_months : float
+        The tenor to extract, e.g. 3, 6, 12, 60.
+    title : str, optional
+        Custom title for the plot.
+    """
+    maturity_spectrum = np.asarray(maturity_spectrum)
+
+    if isinstance(yield_curves_by_series, dict):
+        series_items = yield_curves_by_series.items()
+    else:
+        series_items = [(f"Series {i + 1}", curves) for i, curves in enumerate(yield_curves_by_series)]
+
+    plt.figure(figsize=(10, 4))
+    for label, yield_curves in series_items:
+        yields_over_time = []
+        for yield_curve in yield_curves:
+            yield_curve = np.asarray(yield_curve)
+            idx = np.argmin(np.abs(maturity_spectrum - tenor_months))
+            yields_over_time.append(yield_curve[idx] * 100)
+        plt.plot(np.arange(len(yields_over_time))*3, yields_over_time, marker='o', label=label)
+
+    plt.xlabel('Time [Months]')
+    plt.ylabel(f'Yield at {tenor_months}-month tenor')
+    plt.title(title or f'Yield at {tenor_months}-month tenor over time')
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    plt.show()
+
 # A function for viewing the holdings of a specific pension fund over the simulation periods
 def plot_pf_holdings_over_time(holdings_over_time, pf_index):
     """
